@@ -1,0 +1,2 @@
+id:9422bb82-a4f4-466c-bf25-67e56f040f6a|from:juan|to:amor|content:hola vida mia|timestamp:1763232759375|isGroup:true
+id:a20a7a68-73d7-4ee1-b2bb-96f6410071ea|from:dayan|to:amor|content:hola mi amor|timestamp:1763232759373|isGroup:true

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat TCP vía Proxy</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="container">
+
+    <header class="app-header">
+      <h1>💬 Chat vía Proxy</h1>
+    </header>
+
+    <main class="app-main">
+      <aside class="sidebar">
+        <section class="login card">
+          <h2>Ingresa tu nombre</h2>
+          <form id="login-form">
+            <input id="username" type="text" placeholder="Tu nombre" required>
+            <button type="submit">Entrar</button>
+            <p id="login-status" class="muted"></p>
+          </form>
+        </section>
+
+        <section class="contacts card hidden" id="contacts-section">
+          <div class="section-header">
+            <h3>Contactos y Grupos</h3>
+            <button id="btn-new-contact" class="small-btn">+ Contacto</button>
+          </div>
+          <ul id="contacts-list" class="contacts-list"></ul>
+
+          <div class="section-header group-header">
+            <h4>Crear Grupo</h4>
+            <button id="btn-create-group" class="small-btn">Crear</button>
+          </div>
+          <form id="create-group-form" class="create-group hidden">
+            <input id="group-name" type="text" placeholder="Nombre del grupo" required>
+            <input id="group-members" type="text" placeholder="Miembros (separados por comas, ej: ana,bob)" required>
+            <div class="group-actions">
+              <button type="submit">Crear grupo</button>
+              <button type="button" id="cancel-create" class="alt">Cancelar</button>
+            </div>
+          </form>
+        </section>
+      </aside>
+
+      <section class="chat card hidden" id="chat-section">
+        <div class="chat-header">
+          <div>
+            <h2 id="chat-title">Selecciona un chat</h2>
+            <p id="chat-subtitle" class="muted">Aquí aparecerá el historial de mensajes</p>
+          </div>
+        </div>
+
+        <div id="chat-log" class="chat-log"></div>
+
+        <form id="message-form" class="message-form hidden">
+          <textarea id="message" rows="2" placeholder="Escribe un mensaje..." required></textarea>
+          <div class="message-actions">
+            <button type="submit">Enviar</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

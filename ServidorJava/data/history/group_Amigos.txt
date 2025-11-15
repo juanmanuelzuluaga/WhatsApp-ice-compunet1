@@ -1,0 +1,2 @@
+id:cd6205a0-8c13-4624-9977-bdddf9668587|from:alice|to:Amigos|content:¡Bienvenido Bob al grupo!|timestamp:1762907298399|isGroup:true
+id:580c49be-f32e-4f14-a450-8474982e650e|from:bob|to:Amigos|content:¡Gracias Alice!|timestamp:1762907298399|isGroup:true

@@ -1,0 +1,2 @@
+id:192b85e5-ed12-4bad-8d42-f8cfbc06626b|from:juan|to:hhola|content:hola|timestamp:1762909921084|isGroup:true
+id:f4ebd771-4f04-446e-a3db-1c95dc273d7a|from:dayan|to:hhola|content:hola|timestamp:1762909921075|isGroup:true

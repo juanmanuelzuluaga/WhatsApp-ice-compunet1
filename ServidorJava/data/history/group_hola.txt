@@ -1,0 +1,5 @@
+id:9ed624c3-bf87-46b0-b16f-1759f4b35aa8|from:dayan|to:hola|content:hola|timestamp:1763233925625|isGroup:true
+id:efec9796-9ca7-4a8f-bb77-442d529d8d41|from:juan|to:hola|content:hola|timestamp:1763233925625|isGroup:true
+id:9bd126c2-f80e-4e35-8d18-51b9192a6b7c|from:dayan|to:hola|content:hola|timestamp:1763233925625|isGroup:true
+id:0f77c809-1193-4e72-820a-acd6e68869eb|from:dayan|to:hola|content:ola|timestamp:1763233925625|isGroup:true
+id:2dcf39f6-ffbd-4adb-ab25-71ea31da1f2b|from:juan|to:hola|content:hola|timestamp:1763233925625|isGroup:true

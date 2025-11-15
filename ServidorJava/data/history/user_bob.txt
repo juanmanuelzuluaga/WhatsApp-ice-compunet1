@@ -1,0 +1,3 @@
+id:af2293e4-b0d0-4b56-bc0f-f8e64c960154|from:alice|to:bob|content:Hola Bob, ¿cómo estás?|timestamp:1762908097957|isGroup:false
+id:701695e4-2d35-498f-8aff-42bf8626535a|from:alice|to:bob|content:hola|timestamp:1762908097957|isGroup:false
+id:a32392e8-17bd-4ae5-b0d6-26efc716fbb3|from:alice|to:bob|content:hola|timestamp:1762908097956|isGroup:false
