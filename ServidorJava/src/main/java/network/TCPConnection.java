@@ -62,9 +62,10 @@ public class TCPConnection {
                         if (listener != null) listener.onReceiveObject(this, obj);
                     }
                 } else {
-                    // modo texto: leer líneas
+                    // modo texto: leer líneas con soporte para líneas largas
+                    BufferedReader largeLineReader = new BufferedReader(new InputStreamReader(socket.getInputStream()), 1024 * 1024); // 1MB buffer
                     String line;
-                    while (connected && (line = reader.readLine()) != null) {
+                    while (connected && (line = largeLineReader.readLine()) != null) {
                         if (listener != null) listener.onReceiveObject(this, line);
                     }
                 }

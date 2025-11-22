@@ -49,7 +49,8 @@ app.use(
   }),
 )
 
-app.use(bodyParser.json())
+app.use(bodyParser.json({ limit: "50mb" }))
+app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }))
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, req.body)
@@ -240,15 +241,71 @@ app.post("/api/sendGroupMessage", async (req, res) => {
   }
 })
 
+app.post("/api/sendAudio", async (req, res) => {
+  const { from, to, group_name, audio_data } = req.body
+  console.log(`🎵 POST /api/sendAudio - from: ${from}, to: ${to}, group: ${group_name}, audio size: ${audio_data ? audio_data.length : 0} bytes`)
+
+  if (!from || !audio_data) {
+    return res.status(400).json({ ok: false, error: "Faltan parámetros (from, audio_data requeridos)" })
+  }
+
+  // Guardar el archivo directamente en el servidor ServidorJava
+  const audioId = Math.random().toString(36).substring(7)
+  const audioDir = path.join(__dirname, "..", "..", "..", "ServidorJava", "data", "audio")
+  
+  if (!fs.existsSync(audioDir)) {
+    fs.mkdirSync(audioDir, { recursive: true })
+  }
+  
+  const audioFile = path.join(audioDir, `${audioId}.audio`)
+  
+  try {
+    // Guardar el audio Base64 en archivo
+    fs.writeFileSync(audioFile, audio_data)
+    console.log(`💾 Audio guardado: ${audioFile} (${audio_data.length} bytes)`)
+    
+    // Determinar si es audio privado o de grupo
+    if (group_name) {
+      // Audio de grupo
+      const cmd = `type:group_audio|from:${from}|group_name:${group_name}|audio_id:${audioId}`
+      try {
+        const response = await sendCommand(from, cmd)
+        console.log(`📤 Audio de grupo enviado desde ${from} al grupo ${group_name}, respuesta: ${response.substring(0, 80)}...`)
+        res.json({ ok: true, java_response: response, message: "Audio de grupo enviado", audio_id: audioId })
+      } catch (err) {
+        console.error(`❌ Error sending group audio:`, err.message)
+        res.status(500).json({ ok: false, error: err.message })
+      }
+    } else if (to) {
+      // Audio privado
+      const cmd = `type:audio|from:${from}|to:${to}|audio_id:${audioId}`
+      try {
+        const response = await sendCommand(from, cmd)
+        console.log(`📤 Audio privado enviado desde ${from} a ${to}, respuesta: ${response.substring(0, 80)}...`)
+        res.json({ ok: true, java_response: response, message: "Audio enviado", audio_id: audioId })
+      } catch (err) {
+        console.error(`❌ Error sending audio:`, err.message)
+        res.status(500).json({ ok: false, error: err.message })
+      }
+    } else {
+      res.status(400).json({ ok: false, error: "Debe especificar 'to' para audio privado o 'group_name' para audio de grupo" })
+    }
+  } catch (err) {
+    console.error(`❌ Error guardando audio: ${err.message}`)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
 app.post("/api/createGroup", async (req, res) => {
-  const { group_name, creator } = req.body
-  console.log(`POST /api/createGroup - group: ${group_name}, creator: ${creator}`)
+  const { group_name, creator, members = [] } = req.body
+  console.log(`POST /api/createGroup - group: ${group_name}, creator: ${creator}, members: ${members.join(", ")}`)
 
   if (!group_name || !creator) {
     return res.status(400).json({ ok: false, error: "Faltan parámetros" })
   }
 
-  const cmd = `type:create_group|group_name:${group_name}|creator:${creator}`
+  const membersStr = members.join(",")
+  const cmd = `type:create_group|group_name:${group_name}|creator:${creator}|members:${membersStr}`
 
   try {
     const response = await sendCommand(creator, cmd)
@@ -354,11 +411,45 @@ app.get("/api/notifications/:username", (req, res) => {
   }
 
   // Obtener y limpiar las notificaciones
-  const notifications = session.notifications || []
+  let notifications = session.notifications || []
   session.notifications = []
 
-  console.log(`[${username}] Enviando ${notifications.length} notificaciones`)
-  res.json({ ok: true, notifications: notifications })
+  // Desescapar caracteres especiales en audio
+  const processedNotifications = notifications.map((notif) => {
+    return notif.replace(/_PIPE_/g, "|").replace(/_NEWLINE_/g, "\n")
+  })
+
+  console.log(`[${username}] Enviando ${processedNotifications.length} notificaciones`)
+  res.json({ ok: true, notifications: processedNotifications })
+})
+
+// Endpoint para descargar audio por ID
+app.get("/api/audio/:audioId", (req, res) => {
+  const { audioId } = req.params
+  console.log(`GET /api/audio/${audioId}`)
+
+  if (!audioId) {
+    return res.status(400).json({ ok: false, error: "Audio ID requerido" })
+  }
+
+  try {
+    const audioFile = path.join(__dirname, "..", "..", "..", "ServidorJava", "data", "audio", `${audioId}.audio`)
+    
+    // Verificar que el archivo existe
+    if (!fs.existsSync(audioFile)) {
+      console.error(`❌ Archivo de audio no encontrado: ${audioFile}`)
+      return res.status(404).json({ ok: false, error: "Audio no encontrado" })
+    }
+
+    // Leer el archivo de audio (Base64)
+    const audioBase64 = fs.readFileSync(audioFile, "utf8")
+    console.log(`✅ Audio enviado: ${audioId} (${audioBase64.length} bytes)`)
+    
+    res.json({ ok: true, audio_data: audioBase64 })
+  } catch (err) {
+    console.error(`❌ Error obteniendo audio: ${err.message}`)
+    res.status(500).json({ ok: false, error: err.message })
+  }
 })
 
 const webClientPath = path.resolve(__dirname, "..", "..", "..", "Web-Client")

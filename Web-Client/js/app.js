@@ -92,13 +92,13 @@ async function apiSendGroupMessage(from, group_name, content) {
   }
 }
 
-async function apiCreateGroup(group_name, creator) {
+async function apiCreateGroup(group_name, creator, members = []) {
   try {
-    console.log(`Creando grupo ${group_name} por ${creator}`)
+    console.log(`Creando grupo ${group_name} por ${creator} con miembros: ${members.join(", ")}`)
     const res = await fetch(`${API_URL}/createGroup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ group_name, creator }),
+      body: JSON.stringify({ group_name, creator, members }),
     })
 
     if (!res.ok) {
@@ -207,12 +207,111 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatLog = document.getElementById("chat-log")
   const messageForm = document.getElementById("message-form")
   const messageInput = document.getElementById("message")
+  const btnAudioMsg = document.getElementById("btn-audio-msg")
 
   const state = {
     user: null,
     contacts: [],
     messages: {},
     activeChat: null,
+    isRecording: false,
+    mediaRecorder: null,
+    audioChunks: [],
+  }
+
+  // 🎤 Función para iniciar grabación de audio
+  async function startAudioRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      state.mediaRecorder = new MediaRecorder(stream)
+      state.audioChunks = []
+      state.isRecording = true
+
+      state.mediaRecorder.ondataavailable = (e) => {
+        state.audioChunks.push(e.data)
+      }
+
+      state.mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(state.audioChunks, { type: "audio/wav" })
+        
+        // Convertir a Base64 usando una promesa
+        const base64Audio = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const result = reader.result.split(",")[1]
+            resolve(result)
+          }
+          reader.onerror = reject
+          reader.readAsDataURL(audioBlob)
+        })
+        
+        // Obtener el chat activo
+        const chat = state.contacts.find((c) => c.id === state.activeChat)
+        if (!chat) {
+          console.error("No hay chat activo")
+          state.isRecording = false
+          return
+        }
+
+        try {
+          console.log(`📤 Enviando audio: ${base64Audio.length} bytes`)
+          
+          // Enviar audio
+          const res = await fetch(`${API_URL}/sendAudio`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: state.user,
+              to: chat.type === "group" ? null : chat.name,
+              group_name: chat.type === "group" ? chat.name : null,
+              audio_data: base64Audio,
+            }),
+          })
+
+          if (res.ok) {
+            const resData = await res.json()
+            console.log("✅ Audio enviado correctamente:", resData)
+            // Agregar el audio a los mensajes locales
+            const chatId = state.activeChat
+            state.messages[chatId] = state.messages[chatId] || []
+            state.messages[chatId].push({
+              from: state.user,
+              text: "[🎵 Nota de voz]",
+              time: Date.now(),
+              isAudio: true,
+              audioData: base64Audio,
+            })
+            renderMessages(chatId)
+          } else {
+            const errorText = await res.text()
+            console.error("❌ Error al enviar audio:", res.status, errorText)
+            alert(`Error al enviar audio: ${res.status}`)
+          }
+        } catch (err) {
+          console.error("❌ Error enviando audio:", err)
+          alert("Error: " + err.message)
+        }
+        
+        state.isRecording = false
+      }
+
+      state.mediaRecorder.start()
+      const btnAudio = document.getElementById("btn-audio-msg")
+      if (btnAudio) btnAudio.textContent = "⏹️ Detener"
+    } catch (err) {
+      console.error("Error accediendo al micrófono:", err)
+      alert("No se pudo acceder al micrófono: " + err.message)
+    }
+  }
+
+  // 🎤 Función para detener grabación
+  function stopAudioRecording() {
+    if (state.mediaRecorder && state.isRecording) {
+      state.mediaRecorder.stop()
+      state.mediaRecorder.stream.getTracks().forEach((track) => track.stop())
+      const btnAudio = document.getElementById("btn-audio-msg")
+      if (btnAudio) btnAudio.textContent = "🎤 Nota"
+    }
   }
 
   function renderContacts() {
@@ -253,7 +352,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!c) return
     state.activeChat = id
     chatTitle.textContent = c.name + (c.type === "group" ? " (grupo)" : "")
-    chatSubtitle.textContent = c.type === "group" ? `Miembros: ${c.members.join(", ")}` : ""
+    
+    // Mostrar miembros del grupo si existe
+    if (c.type === "group" && c.members && c.members.length > 0) {
+      chatSubtitle.textContent = `Miembros (${c.members.length}): ${c.members.join(", ")}`
+    } else if (c.type === "group") {
+      chatSubtitle.textContent = "Miembros: (cargando...)"
+    } else {
+      chatSubtitle.textContent = ""
+    }
+    
     chatSection.classList.remove("hidden")
     messageForm.classList.remove("hidden")
     renderMessages(id)
@@ -262,10 +370,65 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderMessages(chatId) {
     chatLog.innerHTML = ""
     const msgs = state.messages[chatId] || []
+    
     msgs.forEach((m) => {
       const div = document.createElement("div")
       div.className = "message " + (m.from === state.user ? "me" : "their")
-      div.innerHTML = `<div class="content">${escapeHtml(m.text)}</div><span class="meta">${m.from} • ${formatTime(m.time)}</span>`
+      
+      if (m.isAudio) {
+        // Crear un reproductor de audio
+        const audioElement = document.createElement("audio")
+        audioElement.controls = true
+        audioElement.style.width = "100%"
+        
+        if (m.audioData) {
+          // Ya tenemos los datos base64
+          audioElement.src = "data:audio/wav;base64," + m.audioData
+          console.log(`🎵 Audio reproductor con datos locales: ${m.audioId || "local"}`)
+        } else if (m.audioId) {
+          // Necesitamos cargar los datos desde el servidor
+          console.log(`⏳ Cargando audio del servidor: ${m.audioId}`)
+          audioElement.style.opacity = "0.6"
+          audioElement.disabled = true
+          
+          // Cargar audio de forma asincrónica
+          fetch(`${API_URL}/audio/${m.audioId}`)
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              return res.json()
+            })
+            .then((data) => {
+              if (data.ok && data.audio_data) {
+                m.audioData = data.audio_data
+                audioElement.src = "data:audio/wav;base64," + data.audio_data
+                audioElement.style.opacity = "1"
+                audioElement.disabled = false
+                console.log(`✅ Audio cargado: ${m.audioId} (${data.audio_data.length} bytes)`)
+              } else {
+                throw new Error(data.error || "Respuesta inválida")
+              }
+            })
+            .catch((err) => {
+              console.error(`❌ Error cargando audio ${m.audioId}:`, err)
+              audioElement.style.opacity = "0.3"
+              audioElement.title = "Error cargando audio: " + err.message
+            })
+        }
+        
+        const content = document.createElement("div")
+        content.className = "content"
+        content.appendChild(audioElement)
+        
+        div.appendChild(content)
+      } else {
+        div.innerHTML = `<div class="content">${escapeHtml(m.text)}</div>`
+      }
+      
+      const meta = document.createElement("span")
+      meta.className = "meta"
+      meta.textContent = `${m.from} • ${formatTime(m.time)}`
+      div.appendChild(meta)
+      
       chatLog.appendChild(div)
     })
     chatLog.scrollTop = chatLog.scrollHeight
@@ -317,6 +480,84 @@ document.addEventListener("DOMContentLoaded", () => {
 
         console.log(`✅ Mensaje privado recibido de ${from}`)
       }
+    } else if (notification.includes("type:audio")) {
+      // 🎵 Procesar notificación de audio privado
+      const parts = notification.split("|")
+      const audioData = {}
+      parts.forEach((part) => {
+        const [key, value] = part.split(":")
+        if (key && value) audioData[key] = value
+      })
+
+      const from = audioData.from
+      const to = audioData.to
+      const audioId = audioData.audio_id
+
+      if (from && to === state.user && audioId) {
+        const contactId = "u:" + from.toLowerCase().replace(/\s+/g, "_")
+
+        // Si no existe el contacto, crearlo
+        if (!state.contacts.find((c) => c.id === contactId)) {
+          addContact(from)
+          renderContacts()
+        }
+
+        // Agregar el audio como mensaje
+        const messageObj = {
+          from,
+          text: "[🎵 Nota de voz]",
+          time: Date.now(),
+          isAudio: true,
+          audioId: audioId,
+          audioData: null, // Se cargará cuando se renderice
+        }
+        
+        state.messages[contactId] = state.messages[contactId] || []
+        state.messages[contactId].push(messageObj)
+
+        // Si el chat activo es con este contacto, actualizar la vista
+        if (state.activeChat === contactId) {
+          renderMessages(contactId)
+        }
+
+        console.log(`✅ Nota de voz recibida de ${from}`)
+      }
+    } else if (notification.includes("type:group_audio")) {
+      // 🎵 Procesar notificación de audio en grupo
+      const parts = notification.split("|")
+      const audioData = {}
+      parts.forEach((part) => {
+        const [key, value] = part.split(":")
+        if (key && value) audioData[key] = value
+      })
+
+      const from = audioData.from
+      const group = audioData.group
+      const audioId = audioData.audio_id
+
+      if (from && group && audioId) {
+        const groupId = "g:" + group.toLowerCase().replace(/\s+/g, "_")
+
+        // Agregar el audio como mensaje (sin audio_data por ahora)
+        const messageObj = {
+          from,
+          text: "[🎵 Nota de voz]",
+          time: Date.now(),
+          isAudio: true,
+          audioId: audioId,
+          audioData: null, // Se cargará cuando se renderice
+        }
+        
+        state.messages[groupId] = state.messages[groupId] || []
+        state.messages[groupId].push(messageObj)
+
+        // Si el chat activo es este grupo, actualizar
+        if (state.activeChat === groupId) {
+          renderMessages(groupId)
+        }
+
+        console.log(`✅ Nota de voz recibida en grupo ${group} de ${from}`)
+      }
     } else if (notification.includes("type:group_message")) {
       const parts = notification.split("|")
       const messageData = {}
@@ -367,6 +608,44 @@ document.addEventListener("DOMContentLoaded", () => {
           renderContacts()
           console.log(`✅ Te uniste al grupo ${group}`)
         }
+      }
+    } else if (notification.includes("type:group_created")) {
+      // Se creó un nuevo grupo - procesar miembros
+      const parts = notification.split("|")
+      const groupData = {}
+      parts.forEach((part) => {
+        const [key, value] = part.split(":")
+        if (key && value) groupData[key] = value
+      })
+
+      const groupName = groupData.group_name
+      const members = groupData.members ? groupData.members.split(",").map(m => m.trim()).filter(Boolean) : []
+
+      if (groupName) {
+        const groupId = "g:" + groupName.toLowerCase().replace(/\s+/g, "_")
+        const existingGroup = state.contacts.find((c) => c.id === groupId)
+        
+        if (existingGroup) {
+          // Actualizar miembros del grupo existente
+          existingGroup.members = members
+          renderContacts()
+          if (state.activeChat === groupId) {
+            openChat(groupId)
+          }
+        } else {
+          // Crear nuevo grupo
+          const newGroup = {
+            id: groupId,
+            name: groupName,
+            type: "group",
+            members: members,
+          }
+          state.contacts.push(newGroup)
+          state.messages[groupId] = []
+          renderContacts()
+        }
+        
+        console.log(`✅ Grupo ${groupName} procesado con ${members.length} miembros`)
       }
     } else if (notification.includes("type:system_message")) {
       // Procesar mensajes del sistema que podrían incluir eventos de grupo
@@ -589,24 +868,14 @@ document.addEventListener("DOMContentLoaded", () => {
       .filter(Boolean)
 
     try {
-      // 1. Crear el grupo
-      await apiCreateGroup(gname, state.user)
+      // Agregar el creador a la lista de miembros
+      const allMembers = [state.user, ...members.filter(m => m !== state.user)]
       
-      // 2. Automáticamente añadir a todos los miembros al grupo
-      for (const member of members) {
-        if (member !== state.user) {
-          // Añadir a otros miembros (no a uno mismo)
-          try {
-            await apiJoinGroup(member, gname)
-            console.log(`✅ ${member} añadido al grupo ${gname}`)
-          } catch (err) {
-            console.warn(`⚠️ No se pudo añadir ${member} al grupo:`, err.message)
-          }
-        }
-      }
+      // 1. Crear el grupo con todos los miembros
+      await apiCreateGroup(gname, state.user, allMembers)
       
       const id = "g:" + gname.toLowerCase().replace(/\s+/g, "_")
-      const group = { id, name: gname, type: "group", members }
+      const group = { id, name: gname, type: "group", members: allMembers }
       state.contacts.push(group)
       state.messages[id] = state.messages[id] || []
       renderContacts()
@@ -619,6 +888,21 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("No se pudo crear el grupo: " + err.message)
     }
   })
+
+  // 🎤 Botón de audio
+  if (btnAudioMsg) {
+    btnAudioMsg.addEventListener("click", () => {
+      if (!state.activeChat) {
+        alert("Selecciona un chat primero")
+        return
+      }
+      if (state.isRecording) {
+        stopAudioRecording()
+      } else {
+        startAudioRecording()
+      }
+    })
+  }
 
   // Message sending
   messageForm.addEventListener("submit", async (e) => {
