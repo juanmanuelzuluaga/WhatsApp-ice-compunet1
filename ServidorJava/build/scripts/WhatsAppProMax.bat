@@ -70,7 +70,7 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\WhatsAppProMax-1.0-SNAPSHOT.jar
+set CLASSPATH=%APP_HOME%\lib\WhatsAppProMax-1.0-SNAPSHOT.jar;%APP_HOME%\lib\icestorm-3.7.10.jar;%APP_HOME%\lib\ice-3.7.10.jar
 
 
 @rem Execute WhatsAppProMax

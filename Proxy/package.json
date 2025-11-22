@@ -1,10 +1,11 @@
 {
   "name": "proxy",
   "version": "1.0.0",
-  "description": "",
+  "description": "Proxy Ice para sistema de chat",
   "main": "server.js",
   "scripts": {
     "start": "node src/main/server.js",
+    "start:ice": "node src/main/server-ice-simple.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,6 +16,8 @@
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "net": "^1.0.2"
+    "ice": "^3.7.100",
+    "net": "^1.0.2",
+    "ws": "^8.18.3"
   }
 }

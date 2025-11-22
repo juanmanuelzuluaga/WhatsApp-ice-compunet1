@@ -98,6 +98,8 @@ public class MainServer implements TCPConnectionListener {
             case "login" -> handleLogin(connection, data);
             case "logout" -> onDisconnect(connection);
             case "private_message" -> handlePrivateMessage(connection, data);
+            case "audio" -> handleAudioMessage(connection, data);
+            case "group_audio" -> handleGroupAudioMessage(connection, data);
             case "group_message" -> handleGroupMessage(data);
             case "create_group" -> handleCreateGroup(connection, data);
             case "join_group" -> handleJoinGroup(connection, data);
@@ -147,16 +149,150 @@ public class MainServer implements TCPConnectionListener {
     }
 
     // =====================================================
+    // 🎵 Notas de voz privadas
+    // =====================================================
+
+    private void handleAudioMessage(TCPConnection connection, Map<String, String> data) {
+        String from = data.get("from");
+        String to = data.get("to");
+        String audioData = data.get("audio_data");
+
+        if (from == null || to == null || audioData == null) {
+            connection.sendObject("type:error|message:Datos de audio incompletos");
+            return;
+        }
+
+        // Guardar audio
+        try {
+            // Generar UUID para el archivo
+            String audioId = java.util.UUID.randomUUID().toString();
+            
+            // Guardar en archivo de datos
+            String audioDir = "data/audio";
+            new java.io.File(audioDir).mkdirs();
+            
+            // Guardar contenido Base64
+            String audioFile = audioDir + "/" + audioId + ".audio";
+            try (java.io.FileWriter fw = new java.io.FileWriter(audioFile)) {
+                fw.write(audioData);
+            }
+            
+            System.out.println("🎵 Audio guardado: " + audioFile + " (" + audioData.length() + " bytes)");
+            
+            // Responder al Proxy con TODA la información necesaria para reenviar al cliente
+            // El Proxy parseará esto y reenviará al cliente WebSocket del destinatario
+            String response = String.format("type:audio|from:%s|to:%s|audio_id:%s|audio_data:%s", from, to, audioId, audioData);
+            connection.sendObject(response);
+            
+            System.out.println("✅ Nota de voz guardada y respuesta enviada al Proxy: " + from + " → " + to);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error guardando audio: " + e.getMessage());
+            connection.sendObject("type:error|message:Error guardando audio");
+        }
+    }
+
+    // =====================================================
+    // 🎵 Notas de voz en grupos
+    // =====================================================
+
+    private void handleGroupAudioMessage(TCPConnection connection, Map<String, String> data) {
+        String from = data.get("from");
+        String groupName = data.get("group_name");
+        String audioData = data.get("audio_data");
+
+        if (from == null || groupName == null || audioData == null) {
+            connection.sendObject("type:error|message:Datos de audio de grupo incompletos");
+            return;
+        }
+
+        if (!chatManager.groupExists(groupName)) {
+            connection.sendObject("type:error|message:Grupo no existe");
+            return;
+        }
+
+        try {
+            // Generar UUID para el archivo
+            String audioId = java.util.UUID.randomUUID().toString();
+            
+            // Guardar en archivo de datos
+            String audioDir = "data/audio";
+            new java.io.File(audioDir).mkdirs();
+            
+            // Guardar contenido Base64
+            String audioFile = audioDir + "/" + audioId + ".audio";
+            try (java.io.FileWriter fw = new java.io.FileWriter(audioFile)) {
+                fw.write(audioData);
+            }
+            
+            System.out.println("🎵 Audio de grupo guardado: " + audioFile);
+            
+            // Obtener miembros del grupo
+            java.util.List<String> members = chatManager.getGroupMembers(groupName);
+            
+            // Responder al Proxy con TODA la información para reenviar a todos los miembros
+            String membersList = String.join(",", members);
+            String response = String.format("type:group_audio|from:%s|group:%s|audio_id:%s|audio_data:%s|members:%s", 
+                    from, groupName, audioId, audioData, membersList);
+            connection.sendObject(response);
+            
+            System.out.println("✅ Nota de voz de grupo guardada y respuesta enviada al Proxy: " + from + " → " + groupName);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error guardando audio de grupo: " + e.getMessage());
+            connection.sendObject("type:error|message:Error guardando audio de grupo");
+        }
+    }
+
+    // =====================================================
     // 👥 Grupos
     // =====================================================
 
     private void handleCreateGroup(TCPConnection connection, Map<String, String> data) {
         String groupName = data.get("group_name");
         String creator = data.get("creator");
+        String membersStr = data.get("members");
 
-        if (groupName != null && creator != null && chatManager.createGroup(groupName, creator)) {
-            sendObjectToUser(creator, "type:group_created|group_name:" + groupName + "|status:ok");
-            broadcastObject("type:system_message|content:Grupo '" + groupName + "' creado por " + creator);
+        if (groupName == null || creator == null) return;
+
+        if (chatManager.createGroup(groupName, creator)) {
+            // Agregar miembros si se proporcionaron
+            String[] members = new String[0];
+            if (membersStr != null && !membersStr.isEmpty()) {
+                members = membersStr.split(",");
+                for (String member : members) {
+                    member = member.trim();
+                    if (!member.isEmpty() && !member.equals(creator)) {
+                        chatManager.joinGroup(groupName, member);
+                    }
+                }
+            }
+
+            // Notificar al creador
+            StringBuilder membersList = new StringBuilder();
+            membersList.append(creator);
+            for (String m : members) {
+                m = m.trim();
+                if (!m.isEmpty()) {
+                    membersList.append(",").append(m);
+                }
+            }
+            
+            String notificationMsg = String.format(
+                "type:group_created|group_name:%s|creator:%s|members:%s",
+                groupName, creator, membersList.toString()
+            );
+            
+            // Enviar a todos los miembros del grupo
+            sendObjectToUser(creator, notificationMsg);
+            for (String member : members) {
+                member = member.trim();
+                if (!member.isEmpty()) {
+                    sendObjectToUser(member, notificationMsg);
+                }
+            }
+            
+            System.out.println("✅ Grupo creado: " + groupName + " con miembros: " + membersList);
         } else {
             sendObjectToUser(creator, "type:error|message:No se pudo crear el grupo '" + groupName + "'.");
         }
