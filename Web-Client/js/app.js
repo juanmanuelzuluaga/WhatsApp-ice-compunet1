@@ -297,7 +297,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       state.mediaRecorder.start()
       const btnAudio = document.getElementById("btn-audio-msg")
-      if (btnAudio) btnAudio.textContent = "⏹️ Detener"
+      if (btnAudio) btnAudio.textContent = "⏹️"
     } catch (err) {
       console.error("Error accediendo al micrófono:", err)
       alert("No se pudo acceder al micrófono: " + err.message)
@@ -310,7 +310,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.mediaRecorder.stop()
       state.mediaRecorder.stream.getTracks().forEach((track) => track.stop())
       const btnAudio = document.getElementById("btn-audio-msg")
-      if (btnAudio) btnAudio.textContent = "🎤 Nota"
+      if (btnAudio) btnAudio.textContent = "🎤"
     }
   }
 

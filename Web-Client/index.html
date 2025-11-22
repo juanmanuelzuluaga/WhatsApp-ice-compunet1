@@ -10,7 +10,7 @@
   <div class="container">
 
     <header class="app-header">
-      <h1>💬 Chat vía Proxy</h1>
+      <h1>💬 Whatsapp </h1>
     </header>
 
     <main class="app-main">
@@ -52,9 +52,6 @@
             <h2 id="chat-title">Selecciona un chat</h2>
             <p id="chat-subtitle" class="muted">Aquí aparecerá el historial de mensajes</p>
           </div>
-          <div class="chat-actions">
-            <button id="btn-audio-msg" class="action-btn" title="Enviar nota de voz">🎤 Nota</button>
-          </div>
         </div>
 
         <div id="chat-log" class="chat-log"></div>
@@ -62,7 +59,8 @@
         <form id="message-form" class="message-form hidden">
           <textarea id="message" rows="2" placeholder="Escribe un mensaje..." required></textarea>
           <div class="message-actions">
-            <button type="submit">Enviar</button>
+            <button type="submit" class="send-btn" title="Enviar mensaje">➡️</button>
+            <button id="btn-audio-msg" class="audio-btn" type="button" title="Enviar nota de voz">🎤</button>
           </div>
         </form>
       </section>
