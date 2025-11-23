@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node src/main/server.js",
-    "start:ice": "node src/main/server-ice-simple.js",
+    "start:ice": "node src/main/server-ice.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

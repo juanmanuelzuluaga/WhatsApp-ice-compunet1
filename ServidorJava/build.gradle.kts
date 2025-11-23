@@ -32,3 +32,24 @@ tasks.withType<JavaCompile> {
 application {
     mainClass.set("ui.MainServer")
 }
+
+// Generar automáticamente clases Ice desde archivos .ice
+tasks.register("generateIce") {
+    doLast {
+        val iceFiles = fileTree("src/main/java") {
+            include("**/*.ice")
+        }
+        
+        iceFiles.forEach { file ->
+            val cmd = arrayOf(
+                "slice2java",
+                "-I" + file.parent,
+                file.absolutePath
+            )
+            println("Generando: ${cmd.joinToString(" ")}")
+            Runtime.getRuntime().exec(cmd).waitFor()
+        }
+    }
+}
+
+tasks.getByName("compileJava").dependsOn("generateIce")

@@ -6,23 +6,23 @@ const API_URL = "http://localhost:3000/api"
 // Verificar conexión con el servidor
 ;(async function verificarServidor() {
   try {
- console.log("Verificando conexión con el proxy...")
+    console.log("Verificando conexión con el proxy...")
     const response = await fetch(`${API_URL}/test`)
     if (response.ok) {
       const data = await response.json()
- console.log("Conexión con el proxy:", data)
+      console.log("Conexión con el proxy:", data)
     } else {
       console.warn("Proxy respondió con estado:", response.status)
     }
   } catch (err) {
- console.error("Error al conectar con el proxy:", err)
+    console.error("Error al conectar con el proxy:", err)
   }
 })()
 
 // Funciones de API
 async function apiLogin(username) {
   try {
- console.log("Intentando login con:", username)
+    console.log("Intentando login con:", username)
     const res = await fetch(`${API_URL}/login`, {
       method: "POST",
       headers: {
@@ -33,26 +33,26 @@ async function apiLogin(username) {
       body: JSON.stringify({ username: username.trim() }),
     })
 
- console.log("Respuesta del servidor:", res.status, res.statusText)
+    console.log("Respuesta del servidor:", res.status, res.statusText)
 
     if (!res.ok) {
       const error = await res.text()
- console.error("Error del servidor:", error)
+      console.error("Error del servidor:", error)
       throw new Error(`Login failed (${res.status}): ${error}`)
     }
 
     const data = await res.json()
- console.log("Login exitoso:", data)
+    console.log("Login exitoso:", data)
     return data
   } catch (err) {
- console.error("Error en login:", err)
+    console.error("Error en login:", err)
     throw err
   }
 }
 
 async function apiSendMessage(from, to, content) {
   try {
- console.log(`Enviando mensaje de ${from} a ${to}: ${content.substring(0, 30)}...`)
+    console.log(`Enviando mensaje de ${from} a ${to}: ${content.substring(0, 30)}...`)
     const res = await fetch(`${API_URL}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -66,14 +66,14 @@ async function apiSendMessage(from, to, content) {
 
     return await res.json()
   } catch (err) {
- console.error("Error enviando mensaje:", err)
+    console.error("Error enviando mensaje:", err)
     throw err
   }
 }
 
 async function apiSendGroupMessage(from, group_name, content) {
   try {
- console.log(`Enviando mensaje de grupo de ${from} a ${group_name}: ${content.substring(0, 30)}...`)
+    console.log(`Enviando mensaje de grupo de ${from} a ${group_name}: ${content.substring(0, 30)}...`)
     const res = await fetch(`${API_URL}/sendGroupMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,14 +87,14 @@ async function apiSendGroupMessage(from, group_name, content) {
 
     return await res.json()
   } catch (err) {
- console.error("Error enviando mensaje de grupo:", err)
+    console.error("Error enviando mensaje de grupo:", err)
     throw err
   }
 }
 
 async function apiCreateGroup(group_name, creator, members = []) {
   try {
- console.log(`Creando grupo ${group_name} por ${creator} con miembros: ${members.join(", ")}`)
+    console.log(`Creando grupo ${group_name} por ${creator} con miembros: ${members.join(", ")}`)
     const res = await fetch(`${API_URL}/createGroup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -108,14 +108,14 @@ async function apiCreateGroup(group_name, creator, members = []) {
 
     return await res.json()
   } catch (err) {
- console.error("Error creando grupo:", err)
+    console.error("Error creando grupo:", err)
     throw err
   }
 }
 
 async function apiGetGroups(username) {
   try {
- console.log(`Obteniendo grupos para ${username}`)
+    console.log(`Obteniendo grupos para ${username}`)
     const res = await fetch(`${API_URL}/groups/${username}`)
 
     if (!res.ok) {
@@ -125,14 +125,14 @@ async function apiGetGroups(username) {
 
     return await res.json()
   } catch (err) {
- console.error("Error obteniendo grupos:", err)
+    console.error("Error obteniendo grupos:", err)
     throw err
   }
 }
 
 async function apiGetHistory(target, username, isGroup = false) {
   try {
- console.log(`Obteniendo historial de ${target}`)
+    console.log(`Obteniendo historial de ${target}`)
     const res = await fetch(`${API_URL}/history/${target}?username=${username}&isGroup=${isGroup}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -144,14 +144,14 @@ async function apiGetHistory(target, username, isGroup = false) {
 
     return await res.json()
   } catch (err) {
- console.error("Error obteniendo historial:", err)
+    console.error("Error obteniendo historial:", err)
     throw err
   }
 }
 
 async function apiJoinGroup(username, group_name) {
   try {
- console.log(`Usuario ${username} uniéndose al grupo ${group_name}`)
+    console.log(`Usuario ${username} uniéndose al grupo ${group_name}`)
     const res = await fetch(`${API_URL}/joinGroup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,14 +165,14 @@ async function apiJoinGroup(username, group_name) {
 
     return await res.json()
   } catch (err) {
- console.error("Error al unirse al grupo:", err)
+    console.error("Error al unirse al grupo:", err)
     throw err
   }
 }
 
 async function apiGetOnlineUsers(username) {
   try {
- console.log(`Obteniendo usuarios online para ${username}`)
+    console.log(`Obteniendo usuarios online para ${username}`)
     const res = await fetch(`${API_URL}/onlineUsers/${username}`)
 
     if (!res.ok) {
@@ -181,14 +181,14 @@ async function apiGetOnlineUsers(username) {
 
     return await res.json()
   } catch (err) {
- console.error("Error obteniendo usuarios online:", err)
+    console.error("Error obteniendo usuarios online:", err)
     throw err
   }
 }
 
 // Asegurarnos de que el DOM está cargado
 document.addEventListener("DOMContentLoaded", () => {
- console.log("DOM cargado, configurando eventos...")
+  console.log("DOM cargado, configurando eventos...")
   const loginForm = document.getElementById("login-form")
   const usernameInput = document.getElementById("username")
   const loginStatus = document.getElementById("login-status")
@@ -248,13 +248,13 @@ document.addEventListener("DOMContentLoaded", () => {
         // Obtener el chat activo
         const chat = state.contacts.find((c) => c.id === state.activeChat)
         if (!chat) {
- console.error("No hay chat activo")
+          console.error("No hay chat activo")
           state.isRecording = false
           return
         }
 
         try {
- console.log(` Enviando audio: ${base64Audio.length} bytes`)
+          console.log(`📤 Enviando audio: ${base64Audio.length} bytes`)
           
           // Enviar audio
           const res = await fetch(`${API_URL}/sendAudio`, {
@@ -270,7 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (res.ok) {
             const resData = await res.json()
- console.log(" Audio enviado correctamente:", resData)
+            console.log("✅ Audio enviado correctamente:", resData)
             // Agregar el audio a los mensajes locales
             const chatId = state.activeChat
             state.messages[chatId] = state.messages[chatId] || []
@@ -284,11 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
             renderMessages(chatId)
           } else {
             const errorText = await res.text()
- console.error(" Error al enviar audio:", res.status, errorText)
+            console.error("❌ Error al enviar audio:", res.status, errorText)
             alert(`Error al enviar audio: ${res.status}`)
           }
         } catch (err) {
- console.error(" Error enviando audio:", err)
+          console.error("❌ Error enviando audio:", err)
           alert("Error: " + err.message)
         }
         
@@ -299,7 +299,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btnAudio = document.getElementById("btn-audio-msg")
       if (btnAudio) btnAudio.textContent = "⏹️"
     } catch (err) {
- console.error("Error accediendo al micrófono:", err)
+      console.error("Error accediendo al micrófono:", err)
       alert("No se pudo acceder al micrófono: " + err.message)
     }
   }
@@ -384,10 +384,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (m.audioData) {
           // Ya tenemos los datos base64
           audioElement.src = "data:audio/wav;base64," + m.audioData
- console.log(` Audio reproductor con datos locales: ${m.audioId || "local"}`)
+          console.log(`🎵 Audio reproductor con datos locales: ${m.audioId || "local"}`)
         } else if (m.audioId) {
           // Necesitamos cargar los datos desde el servidor
- console.log(`⏳ Cargando audio del servidor: ${m.audioId}`)
+          console.log(`⏳ Cargando audio del servidor: ${m.audioId}`)
           audioElement.style.opacity = "0.6"
           audioElement.disabled = true
           
@@ -403,13 +403,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 audioElement.src = "data:audio/wav;base64," + data.audio_data
                 audioElement.style.opacity = "1"
                 audioElement.disabled = false
- console.log(` Audio cargado: ${m.audioId} (${data.audio_data.length} bytes)`)
+                console.log(`✅ Audio cargado: ${m.audioId} (${data.audio_data.length} bytes)`)
               } else {
                 throw new Error(data.error || "Respuesta inválida")
               }
             })
             .catch((err) => {
- console.error(` Error cargando audio ${m.audioId}:`, err)
+              console.error(`❌ Error cargando audio ${m.audioId}:`, err)
               audioElement.style.opacity = "0.3"
               audioElement.title = "Error cargando audio: " + err.message
             })
@@ -445,7 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ✅ Función para procesar notificaciones del servidor
   function processNotification(notification) {
- console.log(" Procesando notificación:", notification)
+    console.log("📨 Procesando notificación:", notification)
 
     if (notification.includes("type:private_message")) {
       const parts = notification.split("|")
@@ -478,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderMessages(contactId)
         }
 
- console.log(` Mensaje privado recibido de ${from}`)
+        console.log(`✅ Mensaje privado recibido de ${from}`)
       }
     } else if (notification.includes("type:audio")) {
       // 🎵 Procesar notificación de audio privado
@@ -520,7 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderMessages(contactId)
         }
 
- console.log(` Nota de voz recibida de ${from}`)
+        console.log(`✅ Nota de voz recibida de ${from}`)
       }
     } else if (notification.includes("type:group_audio")) {
       // 🎵 Procesar notificación de audio en grupo
@@ -556,7 +556,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderMessages(groupId)
         }
 
- console.log(` Nota de voz recibida en grupo ${group} de ${from}`)
+        console.log(`✅ Nota de voz recibida en grupo ${group} de ${from}`)
       }
     } else if (notification.includes("type:group_message")) {
       const parts = notification.split("|")
@@ -582,7 +582,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderMessages(groupId)
         }
 
- console.log(` Mensaje de grupo recibido en ${group}`)
+        console.log(`✅ Mensaje de grupo recibido en ${group}`)
       }
     } else if (notification.includes("type:join_group_success")) {
       // El usuario actual se unió a un grupo exitosamente
@@ -606,7 +606,7 @@ document.addEventListener("DOMContentLoaded", () => {
           state.contacts.push(newGroup)
           state.messages[groupId] = []
           renderContacts()
- console.log(` Te uniste al grupo ${group}`)
+          console.log(`✅ Te uniste al grupo ${group}`)
         }
       }
     } else if (notification.includes("type:group_created")) {
@@ -645,7 +645,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderContacts()
         }
         
- console.log(` Grupo ${groupName} procesado con ${members.length} miembros`)
+        console.log(`✅ Grupo ${groupName} procesado con ${members.length} miembros`)
       }
     } else if (notification.includes("type:system_message")) {
       // Procesar mensajes del sistema que podrían incluir eventos de grupo
@@ -653,7 +653,7 @@ document.addEventListener("DOMContentLoaded", () => {
       
       if (content.includes("se unió al grupo")) {
         // Alguien se unió a un grupo
- console.log("🔔 Notificación:", content)
+        console.log("🔔 Notificación:", content)
       } else if (content.includes("creado por")) {
         // Se creó un nuevo grupo - agregar si no existe
         const match = content.match(/Grupo '([^']+)'/)
@@ -671,11 +671,11 @@ document.addEventListener("DOMContentLoaded", () => {
             state.contacts.push(newGroup)
             state.messages[groupId] = []
             renderContacts()
- console.log(` Nuevo grupo detectado: ${groupName}`)
+            console.log(`✅ Nuevo grupo detectado: ${groupName}`)
           }
         }
       } else {
- console.log("🔔 Notificación del sistema:", content)
+        console.log("🔔 Notificación del sistema:", content)
       }
     }
   }
@@ -732,7 +732,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   state.contacts.push(group)
                   state.messages[groupId] = []
                   renderContacts()
- console.log(` Grupo sincronizado: ${groupStr}`)
+                  console.log(`✅ Grupo sincronizado: ${groupStr}`)
                 }
               }
             })
@@ -741,7 +741,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       } catch (err) {
- console.error("Error obteniendo notificaciones:", err)
+        console.error("Error obteniendo notificaciones:", err)
       }
     }, 1000) // Polling cada 1 segundo
   }
@@ -758,10 +758,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault()
     e.stopPropagation()
- console.log("Formulario de login enviado")
+    console.log("Formulario de login enviado")
 
     const name = usernameInput.value.trim()
- console.log("Nombre ingresado:", name)
+    console.log("Nombre ingresado:", name)
 
     if (!name) {
       loginStatus.textContent = "Ingresa un nombre válido."
@@ -773,9 +773,9 @@ document.addEventListener("DOMContentLoaded", () => {
     loginStatus.style.color = "#3498db"
 
     try {
- console.log(`Intentando conectar a ${API_URL}/login`)
+      console.log(`Intentando conectar a ${API_URL}/login`)
       const response = await apiLogin(name)
- console.log("Respuesta del login:", response)
+      console.log("Respuesta del login:", response)
 
       state.user = name
       loginStatus.textContent = `Bienvenido, ${name}`
@@ -833,7 +833,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       loginStatus.textContent = "Error: " + err.message
       loginStatus.style.color = "#e74c3c"
- console.error("Login error:", err)
+      console.error("Login error:", err)
     }
   })
 
@@ -884,7 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
       groupNameInput.value = ""
       groupMembersInput.value = ""
     } catch (err) {
- console.error("Error al crear grupo:", err)
+      console.error("Error al crear grupo:", err)
       alert("No se pudo crear el grupo: " + err.message)
     }
   })
@@ -929,7 +929,7 @@ document.addEventListener("DOMContentLoaded", () => {
       messageInput.value = ""
       renderMessages(chatId)
     } catch (err) {
- console.error("Error al enviar mensaje:", err)
+      console.error("Error al enviar mensaje:", err)
       alert("No se pudo enviar el mensaje: " + err.message)
     }
   })

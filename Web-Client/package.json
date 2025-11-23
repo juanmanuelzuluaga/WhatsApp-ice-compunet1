@@ -2,11 +2,12 @@
   "name": "web-client",
   "version": "1.0.0",
   "description": "Web client for WhatsApp Ice Chat",
+  "type": "module",
   "main": "js/app.js",
   "scripts": {
-    "build": "webpack",
-    "dev": "webpack-dev-server --mode development",
-    "start": "webpack serve --mode development"
+    "build": "webpack --config webpack.config.js",
+    "dev": "webpack serve --config webpack.config.js --mode development",
+    "watch": "webpack --watch --config webpack.config.js"
   },
   "dependencies": {
     "body-parser": "^2.2.0",

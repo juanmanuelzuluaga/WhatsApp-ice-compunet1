@@ -1,44 +1,41 @@
-# ============================================
 # Node.js / NPM
-# ============================================
 node_modules/
-/Proxy/node_modules/
-/Web-Client/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 /Proxy/proxy.log
 
-# ============================================
-# Java / Gradle
-# ============================================
+# Java / Gradle (Build artifacts)
 .gradle/
-.gradle/*
 ServidorJava/.gradle/
 ServidorJava/bin/
 ServidorJava/build/tmp/
 ServidorJava/build/classes/
 ServidorJava/build/distributions/
-ServidorJava/build/generated/
 ServidorJava/build/scripts/
 *.class
-*.log
 
-# ============================================
-# User Audio Data (Temporary)
-# ============================================
+# IMPORTANTE: NO ignorar archivos generados por Ice
+# Los archivos en ServidorJava/src/main/java/chat/ son NECESARIOS
+# Estos archivos son generados por slice2java y deben estar en el repo:
+# - ChatService.java
+# - ChatServicePrx.java  
+# - MessageInfo.java
+# - AudioInfo.java
+# - GroupInfo.java
+# - UserInfo.java
+# - etc.
+
+# IMPORTANTE: NO ignorar chat.cjs en Proxy
+# El archivo Proxy/src/main/chat.cjs es generado por slice2js y es NECESARIO
+
+# User-generated runtime data (temporal)
 ServidorJava/data/audio/*.audio
-
-# ============================================
-# User Chat History (Runtime Generated)
-# ============================================
 ServidorJava/data/history/*.txt
 ServidorJava/data/history/*.txt_audio
 
-# ============================================
 # OS Files
-# ============================================
 .DS_Store
 .DS_Store?
 ._*
@@ -47,30 +44,26 @@ ServidorJava/data/history/*.txt_audio
 ehthumbs.db
 Thumbs.db
 
-# ============================================
 # Environment
-# ============================================
 .env
 .env.local
 .env.*.local
 
-# ============================================
 # IDE
-# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# ============================================
-# Next.js (keep for compatibility if needed)
-# ============================================
-/.next/
-/out/
+# Webpack build output
+/Web-Client/dist/
+/Web-Client/*.bundle.js
+/Web-Client/*.bundle.js.map
 
-# ============================================
-# TypeScript (keep for compatibility if needed)
-# ============================================
-*.tsbuildinfo
-next-env.d.ts
+# Logs
+*.log
+
+# Evitar duplicados y datos temporales
+Proxy/ServidorJava/
+ServidorJava/chat/

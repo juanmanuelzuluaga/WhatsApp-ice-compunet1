@@ -5,6 +5,11 @@ import model.Message;
 import network.TCPConnection;
 import network.TCPConnectionListener;
 import service.ChatManager;
+import service.ChatServiceImpl;
+import com.zeroc.Ice.Communicator;
+import com.zeroc.Ice.ObjectAdapter;
+import com.zeroc.Ice.Identity;
+import com.zeroc.Ice.Util;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -12,30 +17,109 @@ import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
- * Servidor de chat principal.
- * Maneja conexiones TCP, autenticación, mensajes privados y grupales,
- * así como gestión de llamadas (simuladas) y audio.
+ * Servidor de chat principal - Versión híbrida con Ice y TCP
+ * Maneja conexiones tanto por Ice (RPC) como por TCP (backward compatibility)
  */
 public class MainServer implements TCPConnectionListener {
 
     private final ChatManager chatManager;
     private final Map<String, TCPConnection> userConnections = new ConcurrentHashMap<>();
+    private Communicator iceComm = null;
+    private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+
+    /**
+     * Inicializa el servidor con soporte Ice y TCP
+     */
+    private MainServer(int tcpPort, int icePort) {
+        this.chatManager = new ChatManager();
+        
+        System.out.println("╔════════════════════════════════════════╗");
+        System.out.println("║    SERVIDOR DE CHAT - VERSIÓN ICE     ║");
+        System.out.println("╚════════════════════════════════════════╝");
+        
+        // Iniciar servidor Ice en thread separado
+        threadPool.execute(() -> initializeIceServer(icePort));
+        
+        // Iniciar servidor TCP (backward compatibility)
+        threadPool.execute(() -> initializeTCPServer(tcpPort));
+        
+        // Mantener el servidor activo
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            System.err.println("❌ Servidor interrumpido");
+        }
+    }
 
     public static void main(String[] args) {
-        int port = args.length > 0 ? Integer.parseInt(args[0]) : 5000;
-        new MainServer(port);
+        int tcpPort = 5000;
+        int icePort = 5001;
+        
+        // Parsear argumentos
+        for (int i = 0; i < args.length; i++) {
+            if ("--tcp-port".equals(args[i]) && i + 1 < args.length) {
+                tcpPort = Integer.parseInt(args[++i]);
+            } else if ("--ice-port".equals(args[i]) && i + 1 < args.length) {
+                icePort = Integer.parseInt(args[++i]);
+            }
+        }
+        
+        // Crear instancia
+        new MainServer(tcpPort, icePort);
+    }
+
+    // =====================================================================
+    // INICIALIZACIÓN DE SERVIDORES
+    // =====================================================================
+
+    /**
+     * Inicializa el servidor Ice
+     */
+    private void initializeIceServer(int port) {
+        try {
+            String[] args = new String[]{
+                "--Ice.Default.Host=0.0.0.0",
+                "--Ice.Default.Port=" + port,
+                "--Ice.Warn.Connections=1"
+            };
+            
+            iceComm = Util.initialize(args);
+            ObjectAdapter adapter = iceComm.createObjectAdapterWithEndpoints(
+                "ChatAdapter",
+                "default -p " + port
+            );
+            
+            // Crear instancia del servicio
+            ChatServiceImpl chatService = new ChatServiceImpl();
+            
+            // Registrar objeto Ice como tipo genérico Object
+            Identity id = new Identity("ChatService", "chat");
+            adapter.add((com.zeroc.Ice.Object)chatService, id);
+            
+            adapter.activate();
+            
+            System.out.println("✅ Servidor Ice iniciado en puerto " + port);
+            System.out.println("   Identidad: ChatService");
+            System.out.println("   Endpoint: tcp -p " + port);
+            
+        } catch (java.lang.Exception e) {
+            System.err.println("❌ Error iniciando servidor Ice: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
-     * Inicializa el servidor y escucha conexiones entrantes.
+     * Inicializa el servidor TCP (para backward compatibility con proxy antiguo)
      */
-    private MainServer(int port) {
-        this.chatManager = new ChatManager();
-        System.out.println("💬 SERVIDOR DE CHAT INICIADO EN PUERTO " + port);
-
+    private void initializeTCPServer(int port) {
+        System.out.println("✅ Servidor TCP iniciado en puerto " + port);
+        
         try (ServerSocket serverSocket = new ServerSocket(port)) {
+            System.out.println("💬 Esperando conexiones TCP en puerto " + port);
             while (true) {
                 try {
                     new TCPConnection(serverSocket.accept(), this);
@@ -44,17 +128,17 @@ public class MainServer implements TCPConnectionListener {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("❌ No se pudo iniciar el servidor en el puerto " + port, e);
+            throw new RuntimeException("❌ No se pudo iniciar el servidor TCP en el puerto " + port, e);
         }
     }
 
-    // =====================================================
-    // 🔌 Eventos de conexión
-    // =====================================================
+    // =====================================================================
+    // EVENTOS DE CONEXIÓN TCP
+    // =====================================================================
 
     @Override
     public synchronized void onConnectionReady(TCPConnection connection) {
-        System.out.println("🔗 Nueva conexión desde: " + connection.getRemoteAddress());
+        System.out.println("🔗 Nueva conexión TCP desde: " + connection.getRemoteAddress());
     }
 
     @Override
@@ -64,14 +148,14 @@ public class MainServer implements TCPConnectionListener {
             userConnections.remove(user);
             chatManager.logoutUser(user);
             broadcastObject("type:system_message|content:El usuario " + user + " se ha desconectado.");
-            System.out.println("👋 Usuario desconectado: " + user);
+            System.out.println("👋 Usuario desconectado (TCP): " + user);
         }
     }
 
     @Override
-    public synchronized void onReceiveObject(TCPConnection connection, Object object) {
+    public synchronized void onReceiveObject(TCPConnection connection, java.lang.Object object) {
         if (object instanceof String command) {
-            processCommand(connection, command.trim());
+            processCommand(connection, command.toString().trim());
         } else if (object instanceof AudioMessage audioMessage) {
             handleAudioMessage(audioMessage);
         } else {
@@ -80,14 +164,14 @@ public class MainServer implements TCPConnectionListener {
     }
 
     @Override
-    public synchronized void onException(TCPConnection connection, Exception e) {
+    public synchronized void onException(TCPConnection connection, java.lang.Exception e) {
         System.err.println("💥 Excepción en " + connection.getRemoteAddress() + ": " + e.getMessage());
         onDisconnect(connection);
     }
 
-    // =====================================================
-    // 🧩 Procesamiento de comandos
-    // =====================================================
+    // =====================================================================
+    // PROCESAMIENTO DE COMANDOS TCP
+    // =====================================================================
 
     private void processCommand(TCPConnection connection, String command) {
         Map<String, String> data = parseCommand(command);
@@ -109,13 +193,13 @@ public class MainServer implements TCPConnectionListener {
             case "call_start" -> handleCallStart(data);
             case "call_accept" -> handleCallAccept(data);
             case "call_end" -> handleCallEnd(data);
-            default -> System.out.println("❓ Comando desconocido: " + type);
+            default -> System.out.println("❓ Comando desconocido (TCP): " + type);
         }
     }
 
-    // =====================================================
-    // 👤 Manejo de login / logout
-    // =====================================================
+    // =====================================================================
+    // MANEJO DE LOGIN / LOGOUT
+    // =====================================================================
 
     private void handleLogin(TCPConnection connection, Map<String, String> data) {
         String username = data.get("username");
@@ -123,16 +207,16 @@ public class MainServer implements TCPConnectionListener {
             userConnections.put(username, connection);
             sendObjectToUser(username, "type:login_success|message:Bienvenido " + username);
             broadcastObject("type:system_message|content:" + username + " se ha conectado.");
-            System.out.println("✅ Usuario conectado: " + username);
+            System.out.println("✅ Usuario conectado (TCP): " + username);
         } else {
             connection.sendObject("type:login_error|message:Nombre de usuario inválido o en uso.");
             connection.disconnect();
         }
     }
 
-    // =====================================================
-    // 💬 Mensajería
-    // =====================================================
+    // =====================================================================
+    // MENSAJERÍA PRIVADA
+    // =====================================================================
 
     private void handlePrivateMessage(TCPConnection connection, Map<String, String> data) {
         String from = data.get("from");
@@ -148,9 +232,9 @@ public class MainServer implements TCPConnectionListener {
         sendObjectToUser(from, "type:message_sent|to:" + to + "|status:ok|content:" + content);
     }
 
-    // =====================================================
-    // 🎵 Notas de voz privadas
-    // =====================================================
+    // =====================================================================
+    // AUDIO PRIVADO
+    // =====================================================================
 
     private void handleAudioMessage(TCPConnection connection, Map<String, String> data) {
         String from = data.get("from");
@@ -162,12 +246,10 @@ public class MainServer implements TCPConnectionListener {
             return;
         }
 
-        // Leer audio del archivo guardado por el Proxy
         try {
             String audioDir = "data/audio";
             String audioFile = audioDir + "/" + audioId + ".audio";
             
-            // Verificar que el archivo existe
             java.io.File file = new java.io.File(audioFile);
             if (!file.exists()) {
                 System.err.println("❌ Archivo de audio no encontrado: " + audioFile);
@@ -175,31 +257,25 @@ public class MainServer implements TCPConnectionListener {
                 return;
             }
             
-            // Leer contenido Base64
-            java.nio.file.Path path = java.nio.file.Paths.get(audioFile);
-            String audioData = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+            System.out.println("🎵 Audio privado procesado: " + from + " -> " + to);
             
-            System.out.println("🎵 Audio leído del archivo: " + audioFile + " (" + audioData.length() + " bytes)");
-            
-            // Enviar notificación al receptor sin incluir todo el audio (es muy grande)
             String notification = String.format("type:audio|from:%s|to:%s|audio_id:%s", from, to, audioId);
             sendObjectToUser(to, notification);
             
-            // Responder al Proxy
             String response = String.format("type:audio|from:%s|to:%s|audio_id:%s|status:sent", from, to, audioId);
             connection.sendObject(response);
             
-            System.out.println("✅ Nota de voz enviada: " + from + " → " + to);
+            System.out.println("✅ Nota de voz enviada (TCP): " + from + " → " + to);
             
-        } catch (Exception e) {
+        } catch (java.lang.Exception e) {
             System.err.println("❌ Error procesando audio: " + e.getMessage());
             connection.sendObject("type:error|message:Error procesando audio: " + e.getMessage());
         }
     }
 
-    // =====================================================
-    // 🎵 Notas de voz en grupos
-    // =====================================================
+    // =====================================================================
+    // AUDIO DE GRUPO
+    // =====================================================================
 
     private void handleGroupAudioMessage(TCPConnection connection, Map<String, String> data) {
         String from = data.get("from");
@@ -217,11 +293,9 @@ public class MainServer implements TCPConnectionListener {
         }
 
         try {
-            // Leer audio del archivo guardado por el Proxy
             String audioDir = "data/audio";
             String audioFile = audioDir + "/" + audioId + ".audio";
             
-            // Verificar que el archivo existe
             java.io.File file = new java.io.File(audioFile);
             if (!file.exists()) {
                 System.err.println("❌ Archivo de audio de grupo no encontrado: " + audioFile);
@@ -229,41 +303,31 @@ public class MainServer implements TCPConnectionListener {
                 return;
             }
             
-            // Leer contenido Base64
-            java.nio.file.Path path = java.nio.file.Paths.get(audioFile);
-            String audioData = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            
-            System.out.println("🎵 Audio de grupo leído: " + audioFile + " (" + audioData.length() + " bytes)");
-            
-            // Obtener miembros del grupo
             java.util.List<String> members = chatManager.getGroupMembers(groupName);
             
-            // Enviar notificación de audio a todos los miembros EXCEPTO al remitente
             String notification = String.format("type:group_audio|from:%s|group:%s|audio_id:%s", from, groupName, audioId);
             for (String member : members) {
                 if (!member.equals(from)) {
                     sendObjectToUser(member, notification);
-                    System.out.println("📢 Audio enviado a miembro: " + member);
                 }
             }
             
-            // Responder al Proxy
             String membersList = String.join(",", members);
             String response = String.format("type:group_audio|from:%s|group:%s|audio_id:%s|members:%s|status:sent", 
                     from, groupName, audioId, membersList);
             connection.sendObject(response);
             
-            System.out.println("✅ Audio de grupo enviado: " + from + " → " + groupName + " (" + members.size() + " miembros)");
+            System.out.println("✅ Audio de grupo enviado (TCP): " + from + " → " + groupName);
             
-        } catch (Exception e) {
+        } catch (java.lang.Exception e) {
             System.err.println("❌ Error procesando audio de grupo: " + e.getMessage());
             connection.sendObject("type:error|message:Error procesando audio de grupo");
         }
     }
 
-    // =====================================================
-    // 👥 Grupos
-    // =====================================================
+    // =====================================================================
+    // GESTIÓN DE GRUPOS
+    // =====================================================================
 
     private void handleCreateGroup(TCPConnection connection, Map<String, String> data) {
         String groupName = data.get("group_name");
@@ -273,11 +337,9 @@ public class MainServer implements TCPConnectionListener {
         if (groupName == null || creator == null) return;
 
         if (chatManager.createGroup(groupName, creator)) {
-            // Construir lista de miembros a agregar
             java.util.List<String> allMembers = new java.util.ArrayList<>();
-            allMembers.add(creator); // Agregar creador
+            allMembers.add(creator);
 
-            // Agregar otros miembros si se proporcionaron
             if (membersStr != null && !membersStr.isEmpty()) {
                 String[] members = membersStr.split(",");
                 for (String member : members) {
@@ -289,19 +351,17 @@ public class MainServer implements TCPConnectionListener {
                 }
             }
 
-            // Crear notificación con miembros
             String membersList = String.join(",", allMembers);
             String notificationMsg = String.format(
                 "type:group_created|group_name:%s|creator:%s|members:%s",
                 groupName, creator, membersList
             );
             
-            // Enviar a todos los miembros del grupo
             for (String member : allMembers) {
                 sendObjectToUser(member, notificationMsg);
             }
             
-            System.out.println("✅ Grupo creado: " + groupName + " con miembros: " + membersList);
+            System.out.println("✅ Grupo creado (TCP): " + groupName);
         } else {
             sendObjectToUser(creator, "type:error|message:No se pudo crear el grupo '" + groupName + "'.");
         }
@@ -354,9 +414,9 @@ public class MainServer implements TCPConnectionListener {
         sendObjectToUser(username, "type:history|target:" + target + "|messages:" + historyStr.toString());
     }
 
-    // =====================================================
-    // 📞 Llamadas simuladas
-    // =====================================================
+    // =====================================================================
+    // LLAMADAS
+    // =====================================================================
 
     private void handleCallStart(Map<String, String> data) {
         String from = data.get("from");
@@ -367,7 +427,7 @@ public class MainServer implements TCPConnectionListener {
         if (from == null || to == null || udpPortStr == null) return;
 
         boolean isGroup = "true".equalsIgnoreCase(isGroupStr);
-        int callerUdpPort = Integer.parseInt(udpPortStr);
+        int callerUdpPort = java.lang.Integer.parseInt(udpPortStr);
 
         TCPConnection callerConn = userConnections.get(from);
         if (callerConn == null) return;
@@ -398,7 +458,7 @@ public class MainServer implements TCPConnectionListener {
 
         if (from == null || to == null || udpPortStr == null) return;
 
-        int receiverUdpPort = Integer.parseInt(udpPortStr);
+        int receiverUdpPort = java.lang.Integer.parseInt(udpPortStr);
         TCPConnection receiverConn = userConnections.get(from);
         if (receiverConn == null) return;
 
@@ -418,10 +478,6 @@ public class MainServer implements TCPConnectionListener {
         System.out.println("🛑 Llamada finalizada por " + from + " (ID: " + callId + ")");
     }
 
-    // =====================================================
-    // 🎵 Manejo de audio
-    // =====================================================
-
     private void handleAudioMessage(AudioMessage audioMessage) {
         if (audioMessage == null) return;
         String from = audioMessage.getFrom();
@@ -429,12 +485,12 @@ public class MainServer implements TCPConnectionListener {
         
         chatManager.saveAudioMessage(audioMessage);
         sendObjectToUser(to, audioMessage);
-        System.out.println("🎵 Mensaje de audio de " + from + " a " + to);
+        System.out.println("🎵 Mensaje de audio (TCP): " + from + " → " + to);
     }
 
-    // =====================================================
-    // 👥 Mensajes de grupo
-    // =====================================================
+    // =====================================================================
+    // MENSAJES DE GRUPO
+    // =====================================================================
 
     private void handleGroupMessage(Map<String, String> data) {
         String from = data.get("from");
@@ -456,18 +512,18 @@ public class MainServer implements TCPConnectionListener {
         }
     }
 
-    // =====================================================
-    // 🧱 Utilidades
-    // =====================================================
+    // =====================================================================
+    // UTILIDADES
+    // =====================================================================
 
-    private void sendObjectToUser(String username, Object object) {
+    private void sendObjectToUser(String username, java.lang.Object object) {
         TCPConnection conn = userConnections.get(username);
         if (conn != null && conn.isConnected()) {
             conn.sendObject((Serializable) object);
         }
     }
 
-    private void broadcastObject(Object object) {
+    private void broadcastObject(java.lang.Object object) {
         for (TCPConnection conn : userConnections.values()) {
             if (conn.isConnected()) {
                 conn.sendObject((Serializable) object);

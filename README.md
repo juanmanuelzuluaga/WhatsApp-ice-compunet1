@@ -1,173 +1,138 @@
 # WhatsApp Ice CompuNet
 
-Sistema de chat en tiempo real con mensajería de texto, grupos y notas de voz.
+Sistema de chat en tiempo real con mensajería de texto, grupos y notas de voz utilizando ZeroC Ice RPC y WebSockets.
 
 ---
 
-## 📋 Instrucciones claras para ejecutar el sistema
+## Instrucciones para ejecutar el sistema
 
 ### Requisitos Previos
 
-- **Java 11+**
-- **Node.js 16+**
-- **npm** (gestor de paquetes)
+- **Java 11 o superior**
+- **Node.js 16 o superior**
+- **npm** (gestor de paquetes de Node.js)
+- **ZeroC Ice 3.7** (las librerías ya están incluidas en el proyecto)
 
 ### Pasos para Ejecutar
 
-**Terminal 1 - Iniciar Servidor Java (Puerto 5000):**
+Siga estos pasos en orden, abriendo una terminal diferente para cada comando:
+
+**Terminal 1 - Iniciar Servidor Java (Ice RPC):**
 ```bash
 cd ServidorJava
 gradle run
 ```
 
-**Terminal 2 - Iniciar Proxy Express (Puerto 3000):**
+**Terminal 2 - Iniciar Proxy Node.js:**
 ```bash
 cd Proxy
 npm install
-npm start
+npm run start:ice
 ```
 
 **Terminal 3 - Acceder a la Aplicación:**
-Abre tu navegador en: `http://localhost:3000`
+
+Abra su navegador web en: `http://localhost:3000`
 
 ### Uso Básico
 
-1. Ingresa tu nombre de usuario y haz clic en "Entrar"
-2. Selecciona un contacto o crea un grupo
-3. Envía mensajes de texto o notas de voz
-4. Los mensajes se sincronizan en tiempo real
+1. Ingrese su nombre de usuario y haga clic en "Entrar"
+2. Seleccione un contacto de la lista de usuarios conectados o cree un grupo
+3. Envíe mensajes de texto o grabe notas de voz presionando el botón de micrófono
+4. Los mensajes se reciben en tiempo real gracias a WebSockets
 
 ---
 
-## 🌐 Descripción del flujo de comunicación entre cliente y servidor
+## Descripción del flujo de comunicación entre cliente y servidor
 
-### Arquitectura General
+### Arquitectura del Sistema
+
+El sistema utiliza una arquitectura de tres capas con ZeroC Ice como mecanismo principal de comunicación RPC:
 
 ```
 ┌─────────────────────────────────┐
-│   Cliente Web (Browser)          │
-│   http://localhost:3000          │
-│   HTML/CSS/JavaScript Vanilla    │
+│   Cliente Web (Navegador)       │
+│   HTML/CSS/JavaScript Vanilla   │
+│   Puerto: 3000                   │
 └──────────────┬──────────────────┘
                │
                │ HTTP REST + WebSocket
-               │ - Enviar mensajes
-               │ - Descargar historial
-               │ - Enviar audio
+               │
                ▼
 ┌─────────────────────────────────┐
-│   Proxy Express (Node.js)        │
-│   Puerto 3000 (HTTP/WebSocket)   │
-│   Puerto 5000 (TCP Client)       │
+│   Proxy Node.js (Express)        │
+│   HTTP: Puerto 3000              │
+│   WebSocket: Puerto 8080         │
 └──────────────┬──────────────────┘
                │
-               │ TCP Text Protocol
-               │ type:command|param:value
+               │ ZeroC Ice RPC
+               │ (Invocación remota de métodos)
                ▼
 ┌─────────────────────────────────┐
-│   Servidor Java Backend          │
-│   Puerto 5000 (TCP Server)       │
-│   - ChatManager (lógica)         │
-│   - Persistencia en archivos     │
-│   - Gestión de usuarios/grupos   │
+│   Servidor Java (Ice Server)     │
+│   Ice RPC: Puerto 5001           │
+│   ChatServiceImpl                │
+│   Persistencia en archivos       │
 └─────────────────────────────────┘
 ```
 
-### Flujo de un Mensaje Privado
+### Flujo Detallado de Comunicación
 
-1. **Usuario escribe** un mensaje en el cliente web
-2. **Cliente hace POST** a `/api/sendMessage` con `{from, to, content}`
-3. **Proxy recibe** la petición HTTP y crea un comando TCP
-4. **Proxy envía TCP** al servidor: `type:private_message|from:alice|to:bob|content:Hola`
-5. **Servidor Java procesa** el comando y guarda el mensaje
-6. **Servidor notifica** al Proxy sobre nuevos mensajes para otros usuarios
-7. **Proxy reenvía** el mensaje al receptor vía WebSocket
-8. **Receptor recibe** el mensaje en tiempo real
+**1. Envío de Mensaje Privado:**
 
-### Flujo de un Mensaje de Grupo
+- El usuario escribe un mensaje en el navegador y presiona enviar
+- El cliente JavaScript hace una petición HTTP POST a `/api/sendMessage`
+- El Proxy Node.js recibe la petición y llama al método Ice RPC `sendMessage(from, to, content)`
+- El Servidor Java ejecuta el método, guarda el mensaje en persistencia
+- El servidor retorna confirmación al Proxy vía Ice RPC
+- El Proxy envía una notificación al destinatario mediante WebSocket
+- El destinatario recibe el mensaje en tiempo real sin necesidad de recargar la página
 
-1. Usuario envía mensaje a un grupo desde el cliente web
-2. Cliente hace POST a `/api/sendGroupMessage` con `{from, group_name, content}`
-3. Proxy traduce a comando TCP: `type:group_message|from:alice|group:Amigos|content:...`
-4. Servidor Java recibe y distribuye el mensaje a todos los miembros del grupo
-5. Proxy reenvía a cada miembro vía WebSocket
-6. Todos los miembros ven el mensaje en tiempo real
+**2. Creación de Grupos:**
 
-### Flujo de Notas de Voz
+- El usuario crea un grupo desde la interfaz web
+- Cliente POST a `/api/createGroup` con nombre y lista de miembros
+- Proxy invoca método Ice RPC `createGroup(groupName, creator, members)`
+- Servidor Java crea el grupo y agrega a todos los miembros
+- Proxy envía notificaciones WebSocket a cada miembro agregado
+- Todos los miembros ven el nuevo grupo instantáneamente
 
-1. Usuario hace clic en el botón "🎤 Nota" para grabar audio
-2. Browser solicita permiso de micrófono
-3. Cliente captura audio usando MediaRecorder API
-4. Audio se convierte a formato WAV y luego a Base64
-5. Cliente hace POST a `/api/sendAudio` con el audio codificado
-6. Proxy envía comando TCP con el audio al servidor
-7. Servidor Java recibe y guarda el archivo de audio
-8. Servidor notifica al Proxy
-9. Proxy reenvía el evento al receptor vía WebSocket
-10. Receptor descarga el audio y lo reproduce en un reproductor HTML5
+**3. Envío de Notas de Voz:**
 
-### Capas de Comunicación
+- Usuario presiona botón de micrófono y graba audio (MediaRecorder API del navegador)
+- Audio se codifica en Base64 y se envía vía POST a `/api/sendAudio`
+- Proxy guarda el archivo de audio en el servidor
+- Proxy invoca Ice RPC `sendAudio(from, to, audioId, size, duration)`
+- Servidor registra el audio en la base de datos
+- Destinatario recibe notificación WebSocket con el ID del audio
+- Cliente descarga y reproduce el audio automáticamente
 
-**Cliente → Proxy**: HTTP REST + WebSocket
-- Login: POST `/api/login`
-- Enviar mensaje: POST `/api/sendMessage`
-- Enviar audio: POST `/api/sendAudio`
-- Crear grupo: POST `/api/createGroup`
-- Notificaciones: WebSocket bidireccional
+**4. Sincronización en Tiempo Real:**
 
-**Proxy → Servidor Java**: TCP Text Protocol
-- Formato: `type:comando|key1:value1|key2:value2`
-- Conexión persistente por usuario
-- Respuestas inmediatas a cada comando
-- WebSocket para eventos en tiempo real
+- Al hacer login, el cliente establece conexión WebSocket con el Proxy
+- El Proxy mantiene un mapa de usuarios conectados y sus sockets
+- Cuando ocurre un evento (mensaje, audio, grupo), el servidor notifica al Proxy
+- El Proxy identifica al usuario destinatario y envía la notificación vía WebSocket
+- Si WebSocket falla, existe un sistema de fallback con polling HTTP
+
+### Tecnologías de Comunicación
+
+**Capa Cliente-Proxy:**
+- HTTP REST para operaciones síncronas (login, enviar mensaje, crear grupo)
+- WebSocket para notificaciones asíncronas en tiempo real
+- JSON como formato de intercambio de datos
+
+**Capa Proxy-Servidor:**
+- ZeroC Ice RPC para invocación remota de métodos
+- Archivo de definición Ice (`chat.ice`) que especifica la interfaz del servicio
+- Serialización binaria eficiente de Ice para transferencia de datos
+- Métodos síncronos con manejo de excepciones
 
 ---
 
-## 👥 Nombre de los integrantes del grupo
+## Nombre de los integrantes del grupo
 
 - **Juan Manuel Zuluaga - A00399738**
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-WhatsApp-ice-compunet1/
-├── ServidorJava/              # Backend Java
-│   ├── src/main/java/
-│   │   ├── ui/                # Interfaz servidor
-│   │   ├── model/             # Modelos de datos
-│   │   ├── service/           # Lógica de negocio
-│   │   ├── persistence/       # Almacenamiento
-│   │   └── util/              # Utilidades
-│   ├── data/
-│   │   ├── history/           # Historial de mensajes
-│   │   └── audio/             # Archivos de audio
-│   └── build.gradle.kts
-│
-├── Proxy/                     # Backend Proxy (Node.js)
-│   ├── src/main/
-│   │   └── server-ice-simple.js
-│   └── package.json
-│
-├── Web-Client/                # Frontend
-│   ├── index.html
-│   ├── js/app-ice.js
-│   ├── src/ice-client.js
-│   └── css/styles.css
-│
-└── README.md
-```
-
-## ✨ Funcionalidades
-
-✅ Login con nombre de usuario
-✅ Mensajes privados en tiempo real
-✅ Grupos de chat
-✅ Notas de voz
-✅ Historial persistente
-✅ Usuarios online
-✅ WebSockets para actualizaciones
 
 ---
 
