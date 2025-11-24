@@ -226,12 +226,16 @@ app.post("/api/createGroup", async (req, res) => {
 
     try {
         await iceClient.createGroup(group_name, creator, membersList);
-        res.json({ ok: true, message: "Grupo creado" });
+        
+        // Obtener la lista completa de miembros del grupo desde el servidor
+        const groupMembers = await iceClient.getGroupMembers(group_name);
+ console.log(`📋 Miembros del grupo ${group_name}: ${groupMembers.join(", ")}`);
+        
+        res.json({ ok: true, message: "Grupo creado", members: groupMembers });
         
         // Notificar a todos los miembros del nuevo grupo vía WebSocket
-        const allMembers = [...new Set([creator, ...membersList])];
- console.log(`📢 Enviando notificación de grupo_created a ${allMembers.length} miembros: ${allMembers.join(",")}`);
-        for (const member of allMembers) {
+ console.log(`📢 Enviando notificación de grupo_created a ${groupMembers.length} miembros: ${groupMembers.join(",")}`);
+        for (const member of groupMembers) {
             const memberWs = connectedUsers.get(member);
             if (memberWs && memberWs.readyState === 1) {
  console.log(` Enviando a ${member}`);
@@ -239,6 +243,7 @@ app.post("/api/createGroup", async (req, res) => {
                     type: "group_created",
                     group_name: group_name,
                     creator: creator,
+                    members: groupMembers,
                     timestamp: Date.now(),
                 }));
             } else {
@@ -314,6 +319,57 @@ app.post("/api/sendAudio", async (req, res) => {
         fs.writeFileSync(audioFile, audioBuffer);
         
  console.log(`💾 Audio guardado: ${audioFile} (${audioBuffer.length} bytes)`);
+
+        // ✅ Determinar si es grupo o privado y registrar en Ice
+        const isGroup = !!group_name;
+        const duration = 0; // Por ahora no calculamos la duración
+        const size = audioBuffer.length;
+
+        if (isGroup) {
+            // ✅ Enviar audio de grupo vía Ice
+            await iceClient.sendGroupAudio(from, group_name, audioId, size, duration);
+ console.log(`✅ Audio de grupo registrado en Ice: ${from} -> ${group_name}`);
+            
+            // ✅ Notificar a todos los miembros del grupo vía WebSocket
+            const members = await iceClient.getGroupMembers(group_name);
+            for (const member of members) {
+                if (member !== from) {
+                    const memberWs = connectedUsers.get(member);
+                    if (memberWs && memberWs.readyState === 1) {
+                        memberWs.send(JSON.stringify({
+                            type: "group_audio",
+                            from: from,
+                            group: group_name,
+                            audio_id: audioId,
+                            timestamp: Date.now(),
+                        }));
+ console.log(` Notificado audio de grupo a ${member}`);
+                    }
+                }
+            }
+        } else {
+            // ✅ Enviar audio privado vía Ice
+            // IMPORTANTE: Ice no acepta null, usar el valor de 'to' que ya debe estar definido
+            const targetUser = to || "";
+            if (!targetUser) {
+                throw new Error("Destinatario no especificado para audio privado");
+            }
+            await iceClient.sendAudio(from, targetUser, audioId, size, duration);
+ console.log(`✅ Audio privado registrado en Ice: ${from} -> ${targetUser}`);
+            
+            // ✅ Notificar al receptor vía WebSocket
+            const receiverWs = connectedUsers.get(targetUser);
+            if (receiverWs && receiverWs.readyState === 1) {
+                receiverWs.send(JSON.stringify({
+                    type: "audio",
+                    from: from,
+                    to: targetUser,
+                    audio_id: audioId,
+                    timestamp: Date.now(),
+                }));
+ console.log(` Notificado audio privado a ${targetUser}`);
+            }
+        }
 
         res.json({ ok: true, message: "Audio enviado", audio_id: audioId });
     } catch (err) {
@@ -403,7 +459,11 @@ app.get("/api/audio/:audioId", (req, res) => {
             return res.status(404).json({ ok: false, error: "Audio no encontrado" });
         }
 
-        const audioBase64 = fs.readFileSync(audioFile, "utf8");
+        // ✅ Leer el archivo como buffer binario y convertir a Base64
+        const audioBuffer = fs.readFileSync(audioFile);
+        const audioBase64 = audioBuffer.toString('base64');
+        
+ console.log(`📥 Audio ${audioId} enviado (${audioBase64.length} bytes en Base64)`);
         res.json({ ok: true, audio_data: audioBase64 });
     } catch (err) {
  console.error("Error getting audio:", err.message);

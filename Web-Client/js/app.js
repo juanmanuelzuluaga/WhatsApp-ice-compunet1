@@ -2,6 +2,8 @@ console.log("Iniciando aplicación...")
 
 // Configuración del cliente
 const API_URL = "http://localhost:3000/api"
+const WS_URL = "ws://localhost:8080"
+let websocket = null
 
 // Verificar conexión con el servidor
 ;(async function verificarServidor() {
@@ -443,7 +445,214 @@ document.addEventListener("DOMContentLoaded", () => {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
-  // ✅ Función para procesar notificaciones del servidor
+  // 🌐 Conectar WebSocket
+  function connectWebSocket(username) {
+ console.log("🔌 Conectando WebSocket...")
+    
+    try {
+      websocket = new WebSocket(WS_URL)
+      
+      websocket.onopen = () => {
+ console.log("✅ WebSocket conectado")
+        // Autenticar
+        websocket.send(JSON.stringify({ type: "auth", username: username }))
+      }
+      
+      websocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+ console.log("📨 Mensaje WebSocket recibido:", data)
+          
+          if (data.type === "auth_response") {
+ console.log("✅ Autenticado en WebSocket")
+          } else if (data.type === "private_message") {
+            handlePrivateMessage(data)
+          } else if (data.type === "group_message") {
+            handleGroupMessage(data)
+          } else if (data.type === "group_created") {
+            handleGroupCreated(data)
+          } else if (data.type === "group_joined") {
+            handleGroupJoined(data)
+          } else if (data.type === "audio") {
+            handlePrivateAudio(data)
+          } else if (data.type === "group_audio") {
+            handleGroupAudio(data)
+          }
+        } catch (err) {
+ console.error("Error procesando mensaje WebSocket:", err)
+        }
+      }
+      
+      websocket.onerror = (error) => {
+ console.error("❌ Error WebSocket:", error)
+      }
+      
+      websocket.onclose = () => {
+ console.log("🔌 WebSocket desconectado, reconectando en 3s...")
+        setTimeout(() => connectWebSocket(username), 3000)
+      }
+    } catch (err) {
+ console.error("Error al conectar WebSocket:", err)
+    }
+  }
+  
+  // ✅ Manejar mensaje privado vía WebSocket
+  function handlePrivateMessage(data) {
+    const { from, content, to } = data
+    if (to !== state.user) return
+    
+    const contactId = "u:" + from.toLowerCase().replace(/\s+/g, "_")
+    
+    // Si no existe el contacto, crearlo
+    if (!state.contacts.find((c) => c.id === contactId)) {
+      addContact(from)
+      renderContacts()
+    }
+    
+    // Agregar el mensaje
+    state.messages[contactId] = state.messages[contactId] || []
+    state.messages[contactId].push({ from, text: content, time: Date.now() })
+    
+    // Si el chat activo es con este contacto, actualizar
+    if (state.activeChat === contactId) {
+      renderMessages(contactId)
+    }
+    
+ console.log(`💬 Mensaje privado recibido de ${from}`)
+  }
+  
+  // ✅ Manejar mensaje de grupo vía WebSocket
+  function handleGroupMessage(data) {
+    const { from, group, content } = data
+    const groupId = "g:" + group.toLowerCase().replace(/\s+/g, "_")
+    
+    // Agregar el mensaje
+    state.messages[groupId] = state.messages[groupId] || []
+    state.messages[groupId].push({ from, text: content, time: Date.now() })
+    
+    // Si el chat activo es este grupo, actualizar
+    if (state.activeChat === groupId) {
+      renderMessages(groupId)
+    }
+    
+ console.log(`👥 Mensaje de grupo recibido en ${group}`)
+  }
+  
+  // ✅ Manejar creación de grupo vía WebSocket
+  function handleGroupCreated(data) {
+    const { group_name, creator, members = [] } = data
+    const groupId = "g:" + group_name.toLowerCase().replace(/\s+/g, "_")
+    
+    // Verificar si el grupo ya existe
+    const existingGroup = state.contacts.find((c) => c.id === groupId)
+    if (existingGroup) {
+      // Actualizar los miembros
+      existingGroup.members = members
+      renderContacts()
+      if (state.activeChat === groupId) {
+        openChat(groupId)
+      }
+ console.log(`✅ Grupo ${group_name} actualizado con ${members.length} miembros`)
+      return
+    }
+    
+    // Crear el nuevo grupo
+    const newGroup = {
+      id: groupId,
+      name: group_name,
+      type: "group",
+      members: members,
+    }
+    state.contacts.push(newGroup)
+    state.messages[groupId] = []
+    renderContacts()
+    
+ console.log(`✅ Grupo ${group_name} agregado con ${members.length} miembros: ${members.join(", ")}`)
+  }
+  
+  // ✅ Manejar unión a grupo vía WebSocket
+  function handleGroupJoined(data) {
+    const { group_name } = data
+    const groupId = "g:" + group_name.toLowerCase().replace(/\s+/g, "_")
+    
+    // Verificar si el grupo ya existe
+    const existingGroup = state.contacts.find((c) => c.id === groupId)
+    if (existingGroup) {
+ console.log(`ℹ️ Ya estás en el grupo ${group_name}`)
+      return
+    }
+    
+    // Crear el grupo
+    const newGroup = {
+      id: groupId,
+      name: group_name,
+      type: "group",
+      members: [],
+    }
+    state.contacts.push(newGroup)
+    state.messages[groupId] = []
+    renderContacts()
+    
+ console.log(`✅ Te uniste al grupo ${group_name}`)
+  }
+  
+  // ✅ Manejar audio privado vía WebSocket
+  function handlePrivateAudio(data) {
+    const { from, to, audio_id } = data
+    if (to !== state.user) return
+    
+    const contactId = "u:" + from.toLowerCase().replace(/\s+/g, "_")
+    
+    // Si no existe el contacto, crearlo
+    if (!state.contacts.find((c) => c.id === contactId)) {
+      addContact(from)
+      renderContacts()
+    }
+    
+    // Agregar el audio como mensaje
+    state.messages[contactId] = state.messages[contactId] || []
+    state.messages[contactId].push({
+      from,
+      text: "[🎵 Nota de voz]",
+      time: Date.now(),
+      isAudio: true,
+      audioId: audio_id,
+      audioData: null, // Se cargará cuando se renderice
+    })
+    
+    // Si el chat activo es con este contacto, actualizar
+    if (state.activeChat === contactId) {
+      renderMessages(contactId)
+    }
+    
+ console.log(`🎵 Nota de voz privada recibida de ${from}`)
+  }
+  
+  // ✅ Manejar audio de grupo vía WebSocket
+  function handleGroupAudio(data) {
+    const { from, group, audio_id } = data
+    const groupId = "g:" + group.toLowerCase().replace(/\s+/g, "_")
+    
+    // Agregar el audio como mensaje
+    state.messages[groupId] = state.messages[groupId] || []
+    state.messages[groupId].push({
+      from,
+      text: "[🎵 Nota de voz]",
+      time: Date.now(),
+      isAudio: true,
+      audioId: audio_id,
+      audioData: null, // Se cargará cuando se renderice
+    })
+    
+    // Si el chat activo es este grupo, actualizar
+    if (state.activeChat === groupId) {
+      renderMessages(groupId)
+    }
+    
+ console.log(`🎵 Nota de voz de grupo recibida de ${from} en ${group}`)
+  }
+
+  // ✅ Función para procesar notificaciones del servidor (FALLBACK)
   function processNotification(notification) {
  console.log(" Procesando notificación:", notification)
 
@@ -825,7 +1034,10 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         renderContacts()
 
-        // 🚀 Iniciar polling de notificaciones
+        // 🚀 Conectar WebSocket para notificaciones en tiempo real
+        connectWebSocket(name)
+        
+        // 🚀 Iniciar polling de notificaciones como fallback
         startNotificationPolling(name)
       } catch (err) {
         console.warn("No se pudieron cargar los grupos (no crítico):", err)
@@ -861,28 +1073,28 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault()
     const gname = groupNameInput.value.trim()
     const membersRaw = groupMembersInput.value.trim()
-    if (!gname || !membersRaw) return
+    if (!gname) return
+    
+    // Separar miembros (pueden estar vacíos)
     const members = membersRaw
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
+      .filter(m => m !== state.user) // No incluir al creador
 
     try {
-      // Agregar el creador a la lista de miembros
-      const allMembers = [state.user, ...members.filter(m => m !== state.user)]
+      // 1. Crear el grupo (el creador se agrega automáticamente en el backend)
+      await apiCreateGroup(gname, state.user, members)
       
-      // 1. Crear el grupo con todos los miembros
-      await apiCreateGroup(gname, state.user, allMembers)
+      // ✅ NO agregar el grupo localmente aquí - llegará por WebSocket
+      // Esto evita que aparezca duplicado
       
-      const id = "g:" + gname.toLowerCase().replace(/\s+/g, "_")
-      const group = { id, name: gname, type: "group", members: allMembers }
-      state.contacts.push(group)
-      state.messages[id] = state.messages[id] || []
-      renderContacts()
       createGroupForm.classList.add("hidden")
       btnCreateGroup.disabled = false
       groupNameInput.value = ""
       groupMembersInput.value = ""
+      
+ console.log(`✅ Grupo ${gname} creado, esperando notificación WebSocket...`)
     } catch (err) {
  console.error("Error al crear grupo:", err)
       alert("No se pudo crear el grupo: " + err.message)

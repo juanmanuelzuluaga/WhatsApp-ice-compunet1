@@ -144,11 +144,15 @@ public class ChatHistory {
     }
 
     private void saveAudioData(AudioMessage audioMessage) {
-        String audioFilename = AUDIO_DIR + audioMessage.getId() + ".audio";
-        try (FileOutputStream fos = new FileOutputStream(audioFilename)) {
-            fos.write(audioMessage.getAudioData());
-        } catch (IOException e) {
-            System.err.println("Error guardando datos de audio: " + e.getMessage());
+        // El audio ya está guardado por el proxy Node.js
+        // Solo guardamos si tenemos los datos binarios en memoria
+        if (audioMessage.getAudioData() != null) {
+            String audioFilename = AUDIO_DIR + audioMessage.getId() + ".audio";
+            try (FileOutputStream fos = new FileOutputStream(audioFilename)) {
+                fos.write(audioMessage.getAudioData());
+            } catch (IOException e) {
+                System.err.println("Error guardando datos de audio: " + e.getMessage());
+            }
         }
     }
 

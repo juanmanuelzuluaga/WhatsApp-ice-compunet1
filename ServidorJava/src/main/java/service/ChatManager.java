@@ -90,11 +90,8 @@ public class ChatManager {
             return false;
         }
 
-        if (!isUserOnline(username)) {
-            System.out.println("Usuario no está online: " + username);
-            return false;
-        }
-
+        // PERMITIR agregar miembros aunque no estén online
+        // (pueden unirse después cuando hagan login)
         boolean success = group.addMember(username);
         if (success) {
             System.out.println("Usuario " + username + " se unió al grupo " + groupName);

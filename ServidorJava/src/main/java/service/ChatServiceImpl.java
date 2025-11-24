@@ -169,6 +169,9 @@ public class ChatServiceImpl implements ChatService {
                 throw new UserException("No se pudo crear el grupo (posiblemente ya existe)");
             }
             
+            // IMPORTANTE: El creador debe ser agregado como miembro también
+            chatManager.joinGroup(groupName, creator);
+            
             // Agregar miembros adicionales si se proporcionaron
             if (members != null) {
                 for (String member : members) {
@@ -179,6 +182,9 @@ public class ChatServiceImpl implements ChatService {
             }
             
             System.out.println("✅ Grupo creado vía Ice: " + groupName + " por " + creator);
+            if (members != null) {
+                System.out.println("   Miembros adicionales: " + String.join(", ", members));
+            }
             return true;
         } catch (Exception e) {
             throw new UserException("Error al crear grupo: " + e.getMessage());

@@ -67,3 +67,7 @@ Thumbs.db
 # Evitar duplicados y datos temporales
 Proxy/ServidorJava/
 ServidorJava/chat/
+
+# Archivos de documentación temporal (no subir al repo)
+GUIA_PRUEBAS.md
+SOLUCIONES.md
